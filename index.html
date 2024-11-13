@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Gastos</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f2f5;
+            padding: 20px;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 25px;
+            border-radius: 12px;
+            max-width: 700px;
+            display: flex;
+            flex-wrap: wrap;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        .left-section, .right-section {
+            padding: 15px;
+        }
+        .left-section {
+            flex: 1 1 60%;
+            min-width: 260px;
+        }
+        .right-section {
+            flex: 1 1 40%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .balance {
+            text-align: center;
+            font-size: 1.5em;
+            color: #333;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .totals {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+        }
+        .totals div {
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            color: #fff;
+            margin: 0 5px;
+        }
+        .income-total {
+            background-color: #28a745;
+        }
+        .expense-total {
+            background-color: #dc3545;
+        }
+        .input-section, .transactions {
+            margin-bottom: 20px;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 1em;
+            outline: none;
+            transition: 0.3s;
+        }
+        input:focus, select:focus {
+            border-color: #28a745;
+        }
+        button {
+            background-color: #28a745;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        .transaction {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .transaction.expense {
+            color: #dc3545;
+        }
+        .transaction.income {
+            color: #28a745;
+        }
+        #chartContainer {
+            width: 100%;
+            max-width: 200px;
+            margin-top: 20px;
+        }
+        #myChart {
+            width: 100%;
+            height: auto;
+        }
+
+        /* Responsividade */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            .left-section, .right-section {
+                width: 100%;
+                padding: 10px;
+            }
+            #chartContainer {
+                max-width: 180px;
+                margin: 0 auto;
+            }
+        }
+
+        /* Estilo do rodapé */
+        footer {
+            margin-top: 20px;
+            font-size: 0.9em;
+            color: #555;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Seção Esquerda: Controles e Transações -->
+        <div class="left-section">
+            <h1>Controle de Gastos</h1>
+            <div class="balance">
+                Saldo: <span id="balance">R$ 0,00</span>
+            </div>
+            <div class="totals">
+                <div class="income-total">Receitas: <span id="totalIncome">R$ 0,00</span></div>
+                <div class="expense-total">Despesas: <span id="totalExpense">R$ 0,00</span></div>
+            </div>
+            <div class="input-section">
+                <input type="text" id="description" placeholder="Descrição">
+                <input type="number" id="amount" placeholder="Valor">
+                <select id="type">
+                    <option value="income">Receita</option>
+                    <option value="expense">Despesa</option>
+                </select>
+                <button onclick="addTransaction()">Adicionar</button>
+            </div>
+            <div class="transactions" id="transactions"></div>
+        </div>
+
+        <!-- Seção Direita: Gráfico -->
+        <div class="right-section">
+            <div id="chartContainer">
+                <canvas id="myChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <footer>Desenvolvido por Ronaldo Silva dos Santos - 73991161995</footer>
+
+    <!-- Adicionando o Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        let transactions = JSON.parse(localStorage.getItem("transactions")) || [];
+        let chart;
+
+        function updateTotals() {
+            const totalIncome = transactions
+                .filter(transaction => transaction.type === "income")
+                .reduce((acc, transaction) => acc + transaction.amount, 0);
+            const totalExpense = transactions
+                .filter(transaction => transaction.type === "expense")
+                .reduce((acc, transaction) => acc + transaction.amount, 0);
+            const balance = totalIncome - totalExpense;
+
+            document.getElementById("totalIncome").textContent = `R$ ${totalIncome.toFixed(2)}`;
+            document.getElementById("totalExpense").textContent = `R$ ${totalExpense.toFixed(2)}`;
+            document.getElementById("balance").textContent = `R$ ${balance.toFixed(2)}`;
+
+            updateChart(totalIncome, totalExpense);
+        }
+
+        function displayTransactions() {
+            const transactionsDiv = document.getElementById("transactions");
+            transactionsDiv.innerHTML = "";
+            transactions.forEach((transaction, index) => {
+                const transactionDiv = document.createElement("div");
+                transactionDiv.classList.add("transaction", transaction.type);
+                transactionDiv.innerHTML = `
+                    <span>${transaction.description}</span>
+                    <span>R$ ${transaction.amount.toFixed(2)}</span>
+                    <button onclick="removeTransaction(${index})">X</button>
+                `;
+                transactionsDiv.appendChild(transactionDiv);
+            });
+            updateTotals();
+        }
+
+        function addTransaction() {
+            const description = document.getElementById("description").value;
+            const amount = parseFloat(document.getElementById("amount").value);
+            const type = document.getElementById("type").value;
+
+            if (description && !isNaN(amount)) {
+                const transaction = { description, amount, type };
+                transactions.push(transaction);
+                localStorage.setItem("transactions", JSON.stringify(transactions));
+                displayTransactions();
+                document.getElementById("description").value = "";
+                document.getElementById("amount").value = "";
+            } else {
+                alert("Por favor, preencha todos os campos.");
+            }
+        }
+
+        function removeTransaction(index) {
+            transactions.splice(index, 1);
+            localStorage.setItem("transactions", JSON.stringify(transactions));
+            displayTransactions();
+        }
+
+        function updateChart(totalIncome, totalExpense) {
+            const data = [totalIncome, totalExpense];
+            if (chart) {
+                chart.data.datasets[0].data = data;
+                chart.update();
+            } else {
+                const ctx = document.getElementById('myChart').getContext('2d');
+                chart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Receitas', 'Despesas'],
+                        datasets: [{
+                            data: data,
+                            backgroundColor: ['#28a745', '#dc3545'],
+                            hoverBackgroundColor: ['#28c74a', '#e63c5c']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: {
+                            animateScale: true
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        displayTransactions();
+    </script>
+</body>
+</html>
